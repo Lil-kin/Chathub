@@ -49,6 +49,7 @@
 		"@types/jest": "~29.5.12",
 		"@types/jest-axe": "~3.5.9",
 		"@types/react": "~18.3.11",
+		"@types/react-dom": "~18.3.1",
 		"eslint": "~8.45.0",
 		"eslint-plugin-react": "~7.32.2",
 		"eslint-plugin-react-hooks": "~4.6.2",

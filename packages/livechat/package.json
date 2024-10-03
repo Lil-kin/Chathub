@@ -93,7 +93,7 @@
 		"url-loader": "^4.1.1",
 		"webpack": "^5.95.0",
 		"webpack-bundle-analyzer": "^4.9.1",
-		"webpack-cli": "^5.1.4",
+		"webpack-cli": "~5.1.4",
 		"webpack-dev-server": "~4.13.3"
 	},
 	"peerDependencies": {
