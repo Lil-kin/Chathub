@@ -11,7 +11,6 @@ it('should render options with correct checked state', () => {
 			]}
 			onSelected={jest.fn()}
 		/>,
-		{ legacyRoot: true },
 	);
 
 	const option1 = screen.getByLabelText('Option 1');
@@ -32,7 +31,6 @@ it('should not render group title as selectable option', () => {
 			]}
 			onSelected={jest.fn()}
 		/>,
-		{ legacyRoot: true },
 	);
 
 	expect(screen.getByText('Group title')).toBeInTheDocument();
