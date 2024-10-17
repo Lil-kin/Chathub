@@ -21,7 +21,6 @@ import { saveRoomReadOnly } from '../functions/saveRoomReadOnly';
 import { saveRoomSystemMessages } from '../functions/saveRoomSystemMessages';
 import { saveRoomTopic } from '../functions/saveRoomTopic';
 import { saveRoomType } from '../functions/saveRoomType';
-import { saveStreamingOptions } from '../functions/saveStreamingOptions';
 
 type RoomSettings = {
 	roomAvatar: string;
@@ -37,7 +36,6 @@ type RoomSettings = {
 	systemMessages: MessageTypesValues[];
 	default: boolean;
 	joinCode: string;
-	streamingOptions: NonNullable<IRoom['streamingOptions']>;
 	retentionEnabled: boolean;
 	retentionMaxAge: number;
 	retentionExcludePinned: boolean;
@@ -104,15 +102,34 @@ const validators: RoomSettingsValidators = {
 			return;
 		}
 
-		if (value === 'c' && !(await hasPermissionAsync(userId, 'create-c'))) {
+		if (value === 'c' && !room.teamId && !(await hasPermissionAsync(userId, 'create-c'))) {
 			throw new Meteor.Error('error-action-not-allowed', 'Changing a private group to a public channel is not allowed', {
 				method: 'saveRoomSettings',
 				action: 'Change_Room_Type',
 			});
 		}
 
-		if (value === 'p' && !(await hasPermissionAsync(userId, 'create-p'))) {
+		if (value === 'p' && !room.teamId && !(await hasPermissionAsync(userId, 'create-p'))) {
 			throw new Meteor.Error('error-action-not-allowed', 'Changing a public channel to a private room is not allowed', {
+				method: 'saveRoomSettings',
+				action: 'Change_Room_Type',
+			});
+		}
+
+		if (!room.teamId) {
+			return;
+		}
+		const team = await Team.getInfoById(room.teamId);
+
+		if (value === 'c' && !(await hasPermissionAsync(userId, 'create-team-channel', team?.roomId))) {
+			throw new Meteor.Error('error-action-not-allowed', `Changing a team's private group to a public channel is not allowed`, {
+				method: 'saveRoomSettings',
+				action: 'Change_Room_Type',
+			});
+		}
+
+		if (value === 'p' && !(await hasPermissionAsync(userId, 'create-team-group', team?.roomId))) {
+			throw new Meteor.Error('error-action-not-allowed', `Changing a team's public channel to a private room is not allowed`, {
 				method: 'saveRoomSettings',
 				action: 'Change_Room_Type',
 			});
@@ -272,9 +289,6 @@ const settingSavers: RoomSettingsSavers = {
 			void Team.update(user._id, room.teamId, { type, updateRoom: false });
 		}
 	},
-	async streamingOptions({ value, rid }) {
-		await saveStreamingOptions(rid, value);
-	},
 	async readOnly({ value, room, rid, user }) {
 		if (value !== room.ro) {
 			await saveRoomReadOnly(rid, value, user);
@@ -354,7 +368,6 @@ const fields: (keyof RoomSettings)[] = [
 	'systemMessages',
 	'default',
 	'joinCode',
-	'streamingOptions',
 	'retentionEnabled',
 	'retentionMaxAge',
 	'retentionExcludePinned',

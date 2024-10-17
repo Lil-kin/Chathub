@@ -28,6 +28,9 @@ import type {
 	InsertOneResult,
 	InsertManyResult,
 	AggregationCursor,
+	CountDocumentsOptions,
+	DeleteOptions,
+	ModifyResult,
 } from 'mongodb';
 
 import { getDefaultSubscriptionPref } from '../../../app/utils/lib/getDefaultSubscriptionPref';
@@ -354,7 +357,10 @@ export class SubscriptionsRaw extends BaseRaw<ISubscription> implements ISubscri
 		return this.find(query, options || {});
 	}
 
-	async removeByRoomId(roomId: ISubscription['rid'], options?: { onTrash: (doc: ISubscription) => void }): Promise<DeleteResult> {
+	async removeByRoomId(
+		roomId: ISubscription['rid'],
+		options?: DeleteOptions & { onTrash: (doc: ISubscription) => void },
+	): Promise<DeleteResult> {
 		const query = {
 			rid: roomId,
 		};
@@ -362,10 +368,10 @@ export class SubscriptionsRaw extends BaseRaw<ISubscription> implements ISubscri
 		const deleteResult = await this.deleteMany(query, options);
 
 		if (deleteResult?.deletedCount) {
-			await Rooms.incUsersCountByIds([roomId], -deleteResult.deletedCount);
+			await Rooms.incUsersCountByIds([roomId], -deleteResult.deletedCount, { session: options?.session });
 		}
 
-		await Users.removeRoomByRoomId(roomId);
+		await Users.removeRoomByRoomId(roomId, { session: options?.session });
 
 		return deleteResult;
 	}
@@ -574,21 +580,45 @@ export class SubscriptionsRaw extends BaseRaw<ISubscription> implements ISubscri
 		return this.updateMany(query, update);
 	}
 
+	async setGroupE2EKeyAndOldRoomKeys(_id: string, key: string, oldRoomKeys?: ISubscription['oldRoomKeys']): Promise<UpdateResult> {
+		const query = { _id };
+		const update = { $set: { E2EKey: key, ...(oldRoomKeys && { oldRoomKeys }) } };
+		return this.updateOne(query, update);
+	}
+
 	async setGroupE2EKey(_id: string, key: string): Promise<UpdateResult> {
 		const query = { _id };
 		const update = { $set: { E2EKey: key } };
 		return this.updateOne(query, update);
 	}
 
-	setGroupE2ESuggestedKey(uid: string, rid: string, key: string): Promise<UpdateResult> {
+	setGroupE2ESuggestedKey(uid: string, rid: string, key: string): Promise<ModifyResult<ISubscription>> {
 		const query = { rid, 'u._id': uid };
 		const update = { $set: { E2ESuggestedKey: key } };
-		return this.updateOne(query, update);
+		return this.findOneAndUpdate(query, update, { returnDocument: 'after' });
 	}
 
-	unsetGroupE2ESuggestedKey(_id: string): Promise<UpdateResult | Document> {
+	setE2EKeyByUserIdAndRoomId(userId: string, rid: string, key: string): Promise<ModifyResult<ISubscription>> {
+		const query = { rid, 'u._id': userId };
+		const update = { $set: { E2EKey: key } };
+
+		return this.findOneAndUpdate(query, update, { returnDocument: 'after' });
+	}
+
+	setGroupE2ESuggestedKeyAndOldRoomKeys(
+		uid: string,
+		rid: string,
+		key: string,
+		suggestedOldRoomKeys?: ISubscription['suggestedOldRoomKeys'],
+	): Promise<ModifyResult<ISubscription>> {
+		const query = { rid, 'u._id': uid };
+		const update = { $set: { E2ESuggestedKey: key, ...(suggestedOldRoomKeys && { suggestedOldRoomKeys }) } };
+		return this.findOneAndUpdate(query, update, { returnDocument: 'after' });
+	}
+
+	unsetGroupE2ESuggestedKeyAndOldRoomKeys(_id: string): Promise<UpdateResult | Document> {
 		const query = { _id };
-		return this.updateOne(query, { $unset: { E2ESuggestedKey: 1 } });
+		return this.updateOne(query, { $unset: { E2ESuggestedKey: 1, suggestedOldRoomKeys: 1 } });
 	}
 
 	setOnHoldByRoomId(rid: string): Promise<UpdateResult> {
@@ -745,6 +775,7 @@ export class SubscriptionsRaw extends BaseRaw<ISubscription> implements ISubscri
 					'E2EKey': {
 						$exists: false,
 					},
+					'E2ESuggestedKey': { $exists: false },
 					'u._id': {
 						$ne: excludeUserId,
 					},
@@ -984,6 +1015,7 @@ export class SubscriptionsRaw extends BaseRaw<ISubscription> implements ISubscri
 				$unset: {
 					E2EKey: '',
 					E2ESuggestedKey: 1,
+					oldRoomKeys: 1,
 				},
 			},
 		);
@@ -1105,10 +1137,14 @@ export class SubscriptionsRaw extends BaseRaw<ISubscription> implements ISubscri
 		return this.col.countDocuments(query);
 	}
 
-	countByRoomId(roomId: string): Promise<number> {
+	countByRoomId(roomId: string, options?: CountDocumentsOptions): Promise<number> {
 		const query = {
 			rid: roomId,
 		};
+
+		if (options) {
+			return this.col.countDocuments(query, options);
+		}
 
 		return this.col.countDocuments(query);
 	}

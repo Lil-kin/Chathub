@@ -1675,6 +1675,42 @@ describe('[Users]', () => {
 				.end(done);
 		});
 
+		it('should return an error when trying to upsert a user by sending an empty userId', () => {
+			return request
+				.post(api('users.update'))
+				.set(credentials)
+				.send({
+					userId: '',
+					data: {},
+				})
+				.expect('Content-Type', 'application/json')
+				.expect(400)
+				.expect((res) => {
+					expect(res.body).to.have.property('success', false);
+					expect(res.body).to.have.property('errorType', 'invalid-params');
+					expect(res.body).to.have.property('error', 'must NOT have fewer than 1 characters [invalid-params]');
+				});
+		});
+
+		it('should return an error when trying to use the joinDefaultChannels param, which is not intended for updates', () => {
+			return request
+				.post(api('users.update'))
+				.set(credentials)
+				.send({
+					userId: targetUser._id,
+					data: {
+						joinDefaultChannels: true,
+					},
+				})
+				.expect('Content-Type', 'application/json')
+				.expect(400)
+				.expect((res) => {
+					expect(res.body).to.have.property('success', false);
+					expect(res.body).to.have.property('errorType', 'invalid-params');
+					expect(res.body).to.have.property('error', 'must NOT have additional properties [invalid-params]');
+				});
+		});
+
 		it("should update a bot's email", (done) => {
 			void request
 				.post(api('users.update'))
@@ -2643,18 +2679,37 @@ describe('[Users]', () => {
 	});
 
 	describe('[/users.forgotPassword]', () => {
+		it('should return an error when "Accounts_PasswordReset" is disabled', (done) => {
+			void updateSetting('Accounts_PasswordReset', false).then(() => {
+				void request
+					.post(api('users.forgotPassword'))
+					.send({
+						email: adminEmail,
+					})
+					.expect('Content-Type', 'application/json')
+					.expect(400)
+					.expect((res) => {
+						expect(res.body).to.have.property('success', false);
+						expect(res.body).to.have.property('error', 'Password reset is not enabled');
+					})
+					.end(done);
+			});
+		});
+
 		it('should send email to user (return success), when is a valid email', (done) => {
-			void request
-				.post(api('users.forgotPassword'))
-				.send({
-					email: adminEmail,
-				})
-				.expect('Content-Type', 'application/json')
-				.expect(200)
-				.expect((res) => {
-					expect(res.body).to.have.property('success', true);
-				})
-				.end(done);
+			void updateSetting('Accounts_PasswordReset', true).then(() => {
+				void request
+					.post(api('users.forgotPassword'))
+					.send({
+						email: adminEmail,
+					})
+					.expect('Content-Type', 'application/json')
+					.expect(200)
+					.expect((res) => {
+						expect(res.body).to.have.property('success', true);
+					})
+					.end(done);
+			});
 		});
 
 		it('should not send email to user(return error), when is a invalid email', (done) => {
@@ -2963,7 +3018,7 @@ describe('[Users]', () => {
 				.expect(403)
 				.expect((res) => {
 					expect(res.body).to.have.property('success', false);
-					expect(res.body).to.have.property('error', 'unauthorized');
+					expect(res.body).to.have.property('error', 'User does not have the permissions required for this action [error-unauthorized]');
 				});
 		});
 
@@ -3226,10 +3281,10 @@ describe('[Users]', () => {
 						.get(api('users.getPersonalAccessTokens'))
 						.set(credentials)
 						.expect('Content-Type', 'application/json')
-						.expect(400)
+						.expect(403)
 						.expect((res) => {
 							expect(res.body).to.have.property('success', false);
-							expect(res.body.errorType).to.be.equal('not-authorized');
+							expect(res.body.error).to.be.equal('User does not have the permissions required for this action [error-unauthorized]');
 						})
 						.end(done);
 				});
@@ -3350,6 +3405,7 @@ describe('[Users]', () => {
 					.expect(403)
 					.expect((res) => {
 						expect(res.body).to.have.property('success', false);
+						expect(res.body).to.have.property('error', 'User does not have the permissions required for this action [error-unauthorized]');
 					})
 					.end(done);
 			});
@@ -3366,6 +3422,7 @@ describe('[Users]', () => {
 				.expect(403)
 				.expect((res) => {
 					expect(res.body).to.have.property('success', false);
+					expect(res.body).to.have.property('error', 'User does not have the permissions required for this action [error-unauthorized]');
 				})
 				.end(done);
 		});
@@ -3382,6 +3439,7 @@ describe('[Users]', () => {
 					.expect(403)
 					.expect((res) => {
 						expect(res.body).to.have.property('success', false);
+						expect(res.body).to.have.property('error', 'User does not have the permissions required for this action [error-unauthorized]');
 					})
 					.end(done);
 			});
@@ -3596,7 +3654,7 @@ describe('[Users]', () => {
 					.expect(403)
 					.expect((res) => {
 						expect(res.body).to.have.property('success', false);
-						expect(res.body).to.have.property('error', 'unauthorized');
+						expect(res.body).to.have.property('error', 'User does not have the permissions required for this action [error-unauthorized]');
 					})
 					.end(done);
 			});

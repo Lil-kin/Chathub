@@ -157,6 +157,13 @@ export const statistics = {
 				}),
 		);
 
+		// Number of livechat rooms with department
+		statsPms.push(
+			LivechatRooms.countLivechatRoomsWithDepartment().then((count) => {
+				statistics.totalLivechatRoomsWithDepartment = count;
+			}),
+		);
+
 		// Number of departments
 		statsPms.push(
 			LivechatDepartment.estimatedDocumentCount().then((count) => {
@@ -542,7 +549,6 @@ export const statistics = {
 		statistics.totalOTRRooms = await Rooms.findByCreatedOTR().count();
 		statistics.totalOTR = settings.get('OTR_Count');
 		statistics.totalBroadcastRooms = await Rooms.findByBroadcast().count();
-		statistics.totalRoomsWithActiveLivestream = await Rooms.findByActiveLivestream().count();
 		statistics.totalTriggeredEmails = settings.get('Triggered_Emails_Count');
 		statistics.totalRoomsWithStarred = await Messages.countRoomsWithStarredMessages({ readPreference });
 		statistics.totalRoomsWithPinned = await Messages.countRoomsWithPinnedMessages({ readPreference });
